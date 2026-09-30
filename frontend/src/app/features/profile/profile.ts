@@ -27,7 +27,7 @@ import { errorMessage } from '../../core/utils/dates';
     <header class="page-head">
       <div>
         <h1>Profile</h1>
-        <p>Your name, goal, and how Northstar looks.</p>
+        <p>Your name, goal, and how DaleRoute looks.</p>
       </div>
       <button mat-stroked-button type="button" (click)="logout()">Log out</button>
     </header>

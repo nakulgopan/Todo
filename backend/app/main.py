@@ -30,7 +30,7 @@ async def lifespan(_app: FastAPI):
 
 
 app = FastAPI(
-    title="Northstar",
+    title="DaleRoute",
     summary="Personal to-do and productivity API",
     version="1.0.0",
     lifespan=lifespan,

@@ -14,7 +14,7 @@ import { errorMessage } from '../../core/utils/dates';
   template: `
     <main class="auth-screen">
       <section class="auth-card">
-        <p class="brand-mark">Northstar</p>
+        <p class="brand-mark">DaleRoute</p>
         <h1>Welcome back</h1>
         <p class="lede">Pick up today’s list, streak, and score.</p>
         <form [formGroup]="form" (ngSubmit)="submit()">

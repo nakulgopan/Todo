@@ -15,7 +15,7 @@ import { ThemeService } from '../core/services/theme.service';
       <aside class="sidebar" [class.open]="menuOpen()">
         <a class="logo" routerLink="/">
           <span class="logo-mark">✶</span>
-          <span>Northstar</span>
+          <span>DaleRoute</span>
         </a>
         <nav>
           @for (item of links; track item.path) {

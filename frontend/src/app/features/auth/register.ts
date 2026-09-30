@@ -14,7 +14,7 @@ import { errorMessage } from '../../core/utils/dates';
   template: `
     <main class="auth-screen">
       <section class="auth-card">
-        <p class="brand-mark">Northstar</p>
+        <p class="brand-mark">DaleRoute</p>
         <h1>Start your streak</h1>
         <p class="lede">A private place for tasks, XP, and the days you follow through.</p>
         <form [formGroup]="form" (ngSubmit)="submit()">
