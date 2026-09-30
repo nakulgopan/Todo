@@ -1,11 +1,12 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import { Observable, tap } from 'rxjs';
+import { Observable, from, tap } from 'rxjs';
 
 import { environment } from '../../../environments/environment';
 import { AuthResponse, User } from '../models/models';
+import { supabaseBrowser } from '../supabase/browser';
+import { directApi } from '../supabase/client-api';
 
 const TOKEN_KEY = 'northstar_token';
 
@@ -13,9 +14,7 @@ const TOKEN_KEY = 'northstar_token';
 export class AuthService {
   private readonly http = inject(HttpClient);
   private readonly router = inject(Router);
-  private readonly supabase: SupabaseClient = createClient(environment.supabaseUrl, environment.supabaseAnonKey, {
-    auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
-  });
+  private readonly supabase = supabaseBrowser();
 
   readonly token = signal<string | null>(localStorage.getItem(TOKEN_KEY));
   readonly currentUser = signal<User | null>(null);
@@ -40,6 +39,14 @@ export class AuthService {
   }
 
   register(payload: { name: string; email: string; password: string }): Observable<AuthResponse> {
+    if (environment.direct) {
+      return from(directApi.register(payload)).pipe(
+        tap((response) => {
+          this.remember(response.access_token);
+          this.currentUser.set(response.user);
+        }),
+      );
+    }
     return this.http.post<AuthResponse>(`${environment.apiUrl}/auth/register`, payload).pipe(
       tap((response) => {
         this.remember(response.access_token);
@@ -49,6 +56,14 @@ export class AuthService {
   }
 
   login(payload: { email: string; password: string }): Observable<AuthResponse> {
+    if (environment.direct) {
+      return from(directApi.login(payload)).pipe(
+        tap((response) => {
+          this.remember(response.access_token);
+          this.currentUser.set(response.user);
+        }),
+      );
+    }
     return this.http.post<AuthResponse>(`${environment.apiUrl}/auth/login`, payload).pipe(
       tap((response) => {
         this.remember(response.access_token);
@@ -58,6 +73,9 @@ export class AuthService {
   }
 
   loadCurrentUser(): Observable<User> {
+    if (environment.direct) {
+      return from(directApi.me()).pipe(tap((user) => this.currentUser.set(user)));
+    }
     return this.http.get<User>(`${environment.apiUrl}/auth/me`).pipe(tap((user) => this.currentUser.set(user)));
   }
 
