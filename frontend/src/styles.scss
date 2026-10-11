@@ -147,6 +147,28 @@ a { color: var(--brand); }
 .bonus { color: var(--amber); font-weight: 650; }
 .motivation { font-size: 1.15rem; line-height: 1.5; }
 .task-row em, .day-cell span { color: var(--muted); font-style: normal; }
+.day-list { display: flex; flex-direction: column; gap: 10px; margin-bottom: 16px; }
+.day-card { background: var(--bg-elevated); border: 1px solid var(--line); border-radius: 16px; box-shadow: var(--shadow); }
+.day-card.is-today { border-color: color-mix(in srgb, var(--brand) 55%, var(--line)); }
+.day-head {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.day-head strong { font-family: Fraunces, Georgia, serif; font-size: 1.2rem; }
+.today-pill { border-radius: 999px; background: var(--brand); color: #fff; font-size: 12px; padding: 3px 8px; }
+.day-chevron { margin-left: auto; color: var(--muted); }
+.day-body { padding: 0 16px 8px; }
+.day-note { margin: 8px 0 12px; color: var(--ink); line-height: 1.5; }
+.task-state { color: var(--muted); font-size: 12px; }
 .section-label { margin: 18px 0 4px; font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
 .priority { border-radius: 999px; padding: 4px 8px; font-size: 11px; letter-spacing: 0.06em; }
 .priority.LOW { background: #e7eef2; color: #365066; }

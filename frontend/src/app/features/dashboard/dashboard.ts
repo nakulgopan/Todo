@@ -9,7 +9,7 @@ import { DailyTask, DailyView } from '../../core/models/models';
 import { AuthService } from '../../core/services/auth.service';
 import { ProductivityService } from '../../core/services/productivity.service';
 import { TaskService } from '../../core/services/task.service';
-import { errorMessage, formatLongDate, greeting, todayIso } from '../../core/utils/dates';
+import { addDays, errorMessage, formatLongDate, formatShortDate, greeting, todayIso } from '../../core/utils/dates';
 import { TaskFormDialog } from '../../shared/dialogs/task-form-dialog';
 
 @Component({
@@ -46,53 +46,72 @@ import { TaskFormDialog } from '../../shared/dialogs/task-form-dialog';
         }
       </section>
 
-      <section class="panel">
-        <h2>Today</h2>
-        @if (view.tasks.length === 0 && view.custom_tasks.length === 0) {
-          <div class="empty-state">
-            <h3>Nothing scheduled</h3>
-            <p>Add a recurring habit or a one-time task for today.</p>
-          </div>
-        }
-        @for (task of view.tasks; track task.id) {
-          <div class="task-row">
-            <button
-              type="button"
-              class="done-toggle"
-              [class.is-done]="task.completed"
-              [attr.aria-pressed]="task.completed"
-              [attr.aria-label]="(task.completed ? 'Mark not done: ' : 'Mark done: ') + task.title"
-              (click)="toggle(task, !task.completed)">
-              {{ task.completed ? '✓' : '' }}
+      <section class="day-list">
+        @for (day of dates(); track day) {
+          <article class="day-card" [class.is-today]="day === date" [class.is-open]="openDate() === day">
+            <button type="button" class="day-head" (click)="open(day)" [attr.aria-expanded]="openDate() === day">
+              <strong>{{ shortDate(day) }}</strong>
+              @if (day === date) {
+                <span class="today-pill">Today</span>
+              }
+              <span class="day-chevron">{{ openDate() === day ? '▾' : '▸' }}</span>
             </button>
-            <span>
-              <strong>{{ task.title }}</strong>
-              <small [class]="'priority ' + task.priority">{{ task.priority }}</small>
-            </span>
-            <em>+{{ task.completed ? task.earned_points : task.points }}</em>
-          </div>
+            @if (openDate() === day) {
+              <div class="day-body">
+                @if (viewFor(day); as dayView) {
+                  @if (dayView.tasks.length === 0 && dayView.custom_tasks.length === 0) {
+                    <div class="empty-state">
+                      <h3>Nothing scheduled</h3>
+                      <p>No tasks on this date.</p>
+                    </div>
+                  }
+                  @for (task of dayView.tasks; track task.id) {
+                    <div class="task-row">
+                      <button
+                        type="button"
+                        class="done-toggle"
+                        [class.is-done]="task.completed"
+                        [attr.aria-pressed]="task.completed"
+                        [attr.aria-label]="(task.completed ? 'Mark not done: ' : 'Mark done: ') + task.title"
+                        (click)="toggle(task, !task.completed, day)">
+                        {{ task.completed ? '✓' : '' }}
+                      </button>
+                      <span>
+                        <strong>{{ task.title }}</strong>
+                        <small [class]="'priority ' + task.priority">{{ task.priority }}</small>
+                        <small class="task-state">{{ task.completed ? 'Completed' : 'Incomplete' }}</small>
+                      </span>
+                      <em>+{{ task.completed ? task.earned_points : task.points }}</em>
+                    </div>
+                  }
+                  @for (task of dayView.custom_tasks; track task.id) {
+                    <div class="task-row">
+                      <button
+                        type="button"
+                        class="done-toggle"
+                        [class.is-done]="task.completed"
+                        [attr.aria-pressed]="task.completed"
+                        [attr.aria-label]="(task.completed ? 'Mark not done: ' : 'Mark done: ') + task.title"
+                        (click)="toggle(task, !task.completed, day)">
+                        {{ task.completed ? '✓' : '' }}
+                      </button>
+                      <span>
+                        <strong>{{ task.title }}</strong>
+                        <small class="task-state">{{ task.completed ? 'Completed' : 'Incomplete' }}</small>
+                      </span>
+                      <em>+{{ task.completed ? task.earned_points : task.points }}</em>
+                    </div>
+                  }
+                  <p class="day-note">{{ dayView.motivation }}</p>
+                } @else {
+                  <div class="skeleton-list"><span></span><span></span></div>
+                }
+              </div>
+            }
+          </article>
         }
-        @if (view.custom_tasks.length) {
-          <h3 class="section-label">Custom for today</h3>
-          @for (task of view.custom_tasks; track task.id) {
-            <div class="task-row">
-              <button
-                type="button"
-                class="done-toggle"
-                [class.is-done]="task.completed"
-                [attr.aria-pressed]="task.completed"
-                [attr.aria-label]="(task.completed ? 'Mark not done: ' : 'Mark done: ') + task.title"
-                (click)="toggle(task, !task.completed)">
-                {{ task.completed ? '✓' : '' }}
-              </button>
-              <span><strong>{{ task.title }}</strong></span>
-              <em>+{{ task.completed ? task.earned_points : task.points }}</em>
-            </div>
-          }
-        }
+        <button mat-stroked-button type="button" (click)="showEarlier()">Earlier dates</button>
       </section>
-
-      <section class="motivation">{{ view.motivation }}</section>
     }
   `,
 })
@@ -104,6 +123,9 @@ export class Dashboard {
   private readonly snack = inject(MatSnackBar);
   readonly loading = signal(true);
   readonly daily = signal<DailyView | null>(null);
+  readonly pastViews = signal<Record<string, DailyView>>({});
+  readonly openDate = signal(todayIso());
+  readonly span = signal(21);
   readonly date = todayIso();
 
   constructor() {
@@ -116,6 +138,42 @@ export class Dashboard {
 
   dateLabel(): string {
     return formatLongDate(this.date);
+  }
+
+  shortDate(day: string): string {
+    return formatShortDate(day);
+  }
+
+  dates(): string[] {
+    return Array.from({ length: this.span() + 1 }, (_, index) => addDays(this.date, -index));
+  }
+
+  viewFor(day: string): DailyView | null {
+    if (day === this.date) {
+      return this.daily();
+    }
+    return this.pastViews()[day] ?? null;
+  }
+
+  open(day: string): void {
+    if (day > this.date) {
+      return;
+    }
+    if (this.openDate() === day) {
+      this.openDate.set('');
+      return;
+    }
+    this.openDate.set(day);
+    if (day !== this.date && !this.pastViews()[day]) {
+      this.productivity.daily(day).subscribe({
+        next: (view) => this.pastViews.update((current) => ({ ...current, [day]: view })),
+        error: (error: unknown) => this.snack.open(errorMessage(error), 'Close', { duration: 3500 }),
+      });
+    }
+  }
+
+  showEarlier(): void {
+    this.span.update((count) => count + 14);
   }
 
   load(): void {
@@ -140,13 +198,17 @@ export class Dashboard {
     });
   }
 
-  toggle(task: DailyTask, checked: boolean): void {
+  toggle(task: DailyTask, checked: boolean, day = this.date): void {
     const request = checked
-      ? this.productivity.complete(task.id, this.date)
-      : this.productivity.uncomplete(task.id, this.date);
+      ? this.productivity.complete(task.id, day)
+      : this.productivity.uncomplete(task.id, day);
     request.subscribe({
       next: (result) => {
-        this.daily.set(result.daily);
+        if (day === this.date) {
+          this.daily.set(result.daily);
+        } else {
+          this.pastViews.update((current) => ({ ...current, [day]: result.daily }));
+        }
         for (const achievement of result.unlocked_achievements) {
           this.snack.open(`Achievement unlocked: ${achievement.name}`, 'Close', { duration: 4000 });
         }

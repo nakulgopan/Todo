@@ -15,6 +15,18 @@ export function parseIso(value: string): Date {
   return new Date(year, (month ?? 1) - 1, day ?? 1);
 }
 
+export function addDays(value: string, days: number): string {
+  const date = parseIso(value);
+  date.setDate(date.getDate() + days);
+  return toIso(date);
+}
+
+export function formatShortDate(value: string): string {
+  const date = parseIso(value);
+  const month = new Intl.DateTimeFormat('en-US', { month: 'short' }).format(date);
+  return `${month} ${date.getDate()}`;
+}
+
 export function formatLongDate(value: string): string {
   const date = parseIso(value);
   const weekday = new Intl.DateTimeFormat('en-GB', { weekday: 'long' }).format(date);

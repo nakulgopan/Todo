@@ -9,7 +9,11 @@ describe('Login', () => {
   const auth = jasmine.createSpyObj<AuthService>('AuthService', ['login']);
 
   beforeEach(async () => {
-    auth.login.and.returnValue(of({ id: '1', name: 'Nakul', email: 'nakul@example.com', created_at: '', updated_at: '' }));
+    auth.login.and.returnValue(of({
+      access_token: 'token',
+      token_type: 'bearer',
+      user: { id: '1', name: 'Nakul', email: 'nakul@example.com', created_at: '', updated_at: '' },
+    }));
     await TestBed.configureTestingModule({
       imports: [Login],
       providers: [provideRouter([]), { provide: AuthService, useValue: auth }],

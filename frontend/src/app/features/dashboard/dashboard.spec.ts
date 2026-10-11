@@ -8,6 +8,7 @@ import { AuthService } from '../../core/services/auth.service';
 import { ProductivityService } from '../../core/services/productivity.service';
 import { TaskService } from '../../core/services/task.service';
 import { DailyView } from '../../core/models/models';
+import { addDays, formatShortDate } from '../../core/utils/dates';
 import { Dashboard } from './dashboard';
 
 const daily: DailyView = {
@@ -68,13 +69,14 @@ const daily: DailyView = {
 };
 
 describe('Dashboard', () => {
-  const productivity = jasmine.createSpyObj('ProductivityService', ['dashboard', 'complete', 'uncomplete']);
+  const productivity = jasmine.createSpyObj('ProductivityService', ['dashboard', 'complete', 'uncomplete', 'daily']);
 
   beforeEach(async () => {
     productivity.dashboard.and.returnValue(
       of({ greeting: 'Good evening, Nakul', name: 'Nakul', date: '2026-09-30', date_label: 'Wednesday, 30 September', daily_goal: 100, daily }),
     );
     productivity.complete.and.returnValue(of({ daily: { ...daily, tasks: daily.tasks.map((task) => ({ ...task, completed: true })) }, unlocked_achievements: [] }));
+    productivity.daily.and.returnValue(of(daily));
     await TestBed.configureTestingModule({
       imports: [Dashboard],
       providers: [
@@ -108,5 +110,22 @@ describe('Dashboard', () => {
     fixture.detectChanges();
     const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
     expect(text).toContain('Read 20 pages');
+  });
+
+  it('puts today on top and opens an earlier date', () => {
+    const fixture = TestBed.createComponent(Dashboard);
+    fixture.detectChanges();
+    const root = fixture.nativeElement as HTMLElement;
+    const heads = [...root.querySelectorAll<HTMLButtonElement>('.day-head')];
+    const yesterday = addDays(fixture.componentInstance.date, -1);
+    const tomorrow = addDays(fixture.componentInstance.date, 1);
+    expect(heads[0].textContent).toContain(formatShortDate(fixture.componentInstance.date));
+    expect(heads[0].textContent).toContain('Today');
+    expect(heads[1].textContent).toContain(formatShortDate(yesterday));
+    expect(root.textContent).not.toContain(formatShortDate(tomorrow));
+    heads[1].click();
+    fixture.detectChanges();
+    expect(productivity.daily).toHaveBeenCalledWith(yesterday);
+    expect(root.textContent).toContain('Incomplete');
   });
 });
