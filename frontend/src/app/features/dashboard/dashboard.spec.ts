@@ -77,6 +77,7 @@ describe('Dashboard', () => {
       of({ greeting: 'Good evening, Nakul', name: 'Nakul', date: '2026-09-30', date_label: 'Wednesday, 30 September', daily_goal: 100, daily }),
     );
     productivity.complete.and.returnValue(of({ daily: { ...daily, tasks: daily.tasks.map((task) => ({ ...task, completed: true })) }, unlocked_achievements: [] }));
+    productivity.uncomplete.and.returnValue(of({ daily: { ...daily, tasks: daily.tasks.map((task) => ({ ...task, completed: false })) }, unlocked_achievements: [] }));
     productivity.daily.and.returnValue(of(daily));
     await TestBed.configureTestingModule({
       imports: [Dashboard],
@@ -103,14 +104,27 @@ describe('Dashboard', () => {
     expect(text).toContain('Great work');
   });
 
-  it('completes a task through the productivity service', () => {
+  it('ticks a task and saves that date', () => {
     const fixture = TestBed.createComponent(Dashboard);
     fixture.detectChanges();
-    fixture.componentInstance.toggle(daily.tasks[1], true);
-    expect(productivity.complete).toHaveBeenCalledWith('read', fixture.componentInstance.date);
-    fixture.detectChanges();
+    const day = fixture.componentInstance.date;
     const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
-    expect(text).toContain('Read 20 pages');
+    expect(text).toContain('Done');
+    expect(text).toContain('Undone');
+    expect(text).toContain('Save');
+    fixture.componentInstance.mark(daily.tasks[1], day, true);
+    expect(productivity.complete).not.toHaveBeenCalled();
+    fixture.componentInstance.save(day);
+    expect(productivity.complete).toHaveBeenCalledWith('read', day);
+  });
+
+  it('saves an undone task for that date', () => {
+    const fixture = TestBed.createComponent(Dashboard);
+    fixture.detectChanges();
+    const day = fixture.componentInstance.date;
+    fixture.componentInstance.mark(daily.tasks[0], day, false);
+    fixture.componentInstance.save(day);
+    expect(productivity.uncomplete).toHaveBeenCalledWith('gym', day);
   });
 
   it('puts today on top and opens an earlier date', () => {
@@ -127,7 +141,7 @@ describe('Dashboard', () => {
     heads[1].click();
     fixture.detectChanges();
     expect(productivity.daily).toHaveBeenCalledWith(yesterday);
-    expect(root.textContent).toContain('Incomplete');
+    expect(root.textContent).toContain('Undone');
   });
 
   it('adds a daily task from the header and a task for an open date', () => {

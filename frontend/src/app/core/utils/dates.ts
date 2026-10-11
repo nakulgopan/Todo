@@ -55,6 +55,9 @@ export function errorMessage(error: unknown): string {
     if (Array.isArray(detail)) {
       return detail.map((item: { msg?: string }) => item.msg ?? 'Invalid value').join(' ');
     }
+    if (error.status === 0) {
+      return 'The app server is not running. Start it, then try again.';
+    }
   }
   if (error instanceof Error && error.message) {
     return error.message;

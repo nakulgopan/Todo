@@ -1,8 +1,10 @@
 import { Component, inject, signal } from '@angular/core';
+import { concat } from 'rxjs';
 import { MatButtonModule } from '@angular/material/button';
 import { MatDialog } from '@angular/material/dialog';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
+import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatSnackBar } from '@angular/material/snack-bar';
 
 import { DailyTask, DailyView } from '../../core/models/models';
@@ -14,7 +16,7 @@ import { TaskFormDialog } from '../../shared/dialogs/task-form-dialog';
 
 @Component({
   selector: 'app-dashboard',
-  imports: [MatButtonModule, MatIconModule, MatProgressBarModule],
+  imports: [MatButtonModule, MatIconModule, MatProgressBarModule, MatSlideToggleModule],
   template: `
     @if (loading()) {
       <section class="skeleton-page">
@@ -61,6 +63,7 @@ import { TaskFormDialog } from '../../shared/dialogs/task-form-dialog';
                 @if (viewFor(day); as dayView) {
                   <div class="day-actions">
                     <button mat-stroked-button type="button" (click)="addForDate(day)">Add task for {{ shortDate(day) }}</button>
+                    <button mat-flat-button color="primary" type="button" [disabled]="!dirty(day) || saving()" (click)="save(day)">Save</button>
                   </div>
                   @if (dayView.tasks.length === 0 && dayView.custom_tasks.length === 0) {
                     <div class="empty-state">
@@ -70,39 +73,29 @@ import { TaskFormDialog } from '../../shared/dialogs/task-form-dialog';
                   }
                   @for (task of dayView.tasks; track task.id) {
                     <div class="task-row">
-                      <button
-                        type="button"
-                        class="done-toggle"
-                        [class.is-done]="task.completed"
-                        [attr.aria-pressed]="task.completed"
-                        [attr.aria-label]="(task.completed ? 'Mark not done: ' : 'Mark done: ') + task.title"
-                        (click)="toggle(task, !task.completed, day)">
-                        {{ task.completed ? '✓' : '' }}
-                      </button>
                       <span>
                         <strong>{{ task.title }}</strong>
                         <small [class]="'priority ' + task.priority">{{ task.priority }}</small>
-                        <small class="task-state">{{ task.completed ? 'Completed' : 'Incomplete' }}</small>
                       </span>
-                      <em>+{{ task.completed ? task.earned_points : task.points }}</em>
+                      <div class="done-slide">
+                        <span [class.is-current]="!isDone(task, day)">Undone</span>
+                        <mat-slide-toggle color="primary" [checked]="isDone(task, day)" (change)="mark(task, day, $event.checked)" [attr.aria-label]="'Done or undone: ' + task.title"></mat-slide-toggle>
+                        <span [class.is-current]="isDone(task, day)">Done</span>
+                      </div>
+                      <em>+{{ isDone(task, day) ? task.earned_points || task.points : task.points }}</em>
                     </div>
                   }
                   @for (task of dayView.custom_tasks; track task.id) {
                     <div class="task-row">
-                      <button
-                        type="button"
-                        class="done-toggle"
-                        [class.is-done]="task.completed"
-                        [attr.aria-pressed]="task.completed"
-                        [attr.aria-label]="(task.completed ? 'Mark not done: ' : 'Mark done: ') + task.title"
-                        (click)="toggle(task, !task.completed, day)">
-                        {{ task.completed ? '✓' : '' }}
-                      </button>
                       <span>
                         <strong>{{ task.title }}</strong>
-                        <small class="task-state">{{ task.completed ? 'Completed' : 'Incomplete' }}</small>
                       </span>
-                      <em>+{{ task.completed ? task.earned_points : task.points }}</em>
+                      <div class="done-slide">
+                        <span [class.is-current]="!isDone(task, day)">Undone</span>
+                        <mat-slide-toggle color="primary" [checked]="isDone(task, day)" (change)="mark(task, day, $event.checked)" [attr.aria-label]="'Done or undone: ' + task.title"></mat-slide-toggle>
+                        <span [class.is-current]="isDone(task, day)">Done</span>
+                      </div>
+                      <em>+{{ isDone(task, day) ? task.earned_points || task.points : task.points }}</em>
                     </div>
                   }
                   <p class="day-note">{{ dayView.motivation }}</p>
@@ -129,7 +122,9 @@ export class Dashboard {
   readonly pastViews = signal<Record<string, DailyView>>({});
   readonly openDate = signal(todayIso());
   readonly span = signal(21);
+  readonly saving = signal(false);
   readonly date = todayIso();
+  private readonly drafts = signal<Record<string, Record<string, boolean>>>({});
 
   constructor() {
     this.load();
@@ -179,44 +174,62 @@ export class Dashboard {
     this.span.update((count) => count + 14);
   }
 
-  load(): void {
-    this.productivity.dashboard(this.date).subscribe({
-      next: (view) => {
-        this.daily.set(view.daily);
-        if (!this.auth.currentUser() && view.name) {
-          this.auth.currentUser.set({
-            id: '',
-            name: view.name,
-            email: '',
-            created_at: '',
-            updated_at: '',
-          });
-        }
-        this.loading.set(false);
-      },
-      error: (error: unknown) => {
-        this.loading.set(false);
-        this.snack.open(errorMessage(error), 'Close', { duration: 3500 });
-      },
-    });
+  isDone(task: DailyTask, day: string): boolean {
+    const draft = this.drafts()[day]?.[task.id];
+    return draft === undefined ? task.completed : draft;
   }
 
-  toggle(task: DailyTask, checked: boolean, day = this.date): void {
-    const request = checked
-      ? this.productivity.complete(task.id, day)
-      : this.productivity.uncomplete(task.id, day);
-    request.subscribe({
+  mark(task: DailyTask, day: string, completed: boolean): void {
+    this.drafts.update((current) => ({
+      ...current,
+      [day]: { ...current[day], [task.id]: completed },
+    }));
+  }
+
+  dirty(day: string): boolean {
+    const view = this.viewFor(day);
+    if (!view) {
+      return false;
+    }
+    return [...view.tasks, ...view.custom_tasks].some((task) => this.isDone(task, day) !== task.completed);
+  }
+
+  save(day: string): void {
+    const view = this.viewFor(day);
+    if (!view || this.saving()) {
+      return;
+    }
+    const changes = [...view.tasks, ...view.custom_tasks].filter((task) => this.isDone(task, day) !== task.completed);
+    if (!changes.length) {
+      return;
+    }
+    this.saving.set(true);
+    const unlocked: string[] = [];
+    concat(
+      ...changes.map((task) =>
+        this.isDone(task, day) ? this.productivity.complete(task.id, day) : this.productivity.uncomplete(task.id, day),
+      ),
+    ).subscribe({
       next: (result) => {
-        if (day === this.date) {
-          this.daily.set(result.daily);
-        } else {
-          this.pastViews.update((current) => ({ ...current, [day]: result.daily }));
-        }
         for (const achievement of result.unlocked_achievements) {
-          this.snack.open(`Achievement unlocked: ${achievement.name}`, 'Close', { duration: 4000 });
+          unlocked.push(achievement.name);
         }
       },
-      error: (error: unknown) => this.snack.open(errorMessage(error), 'Close', { duration: 3500 }),
+      error: (error: unknown) => {
+        this.saving.set(false);
+        this.snack.open(errorMessage(error), 'Close', { duration: 3500 });
+      },
+      complete: () => {
+        this.saving.set(false);
+        for (const name of unlocked) {
+          this.snack.open(`Achievement unlocked: ${name}`, 'Close', { duration: 4000 });
+        }
+        this.snack.open('Saved', 'Close', { duration: 2500 });
+        this.refresh(day);
+        if (day !== this.date) {
+          this.load();
+        }
+      },
     });
   }
 
@@ -250,13 +263,46 @@ export class Dashboard {
   }
 
   private refresh(day: string): void {
+    const clear = () => {
+      this.drafts.update((current) => {
+        const next = { ...current };
+        delete next[day];
+        return next;
+      });
+    };
     if (day === this.date) {
-      this.load();
+      this.load(clear);
       return;
     }
     this.productivity.daily(day).subscribe({
-      next: (view) => this.pastViews.update((current) => ({ ...current, [day]: view })),
+      next: (view) => {
+        this.pastViews.update((current) => ({ ...current, [day]: view }));
+        clear();
+      },
       error: (error: unknown) => this.snack.open(errorMessage(error), 'Close', { duration: 3500 }),
+    });
+  }
+
+  private load(after?: () => void): void {
+    this.productivity.dashboard(this.date).subscribe({
+      next: (view) => {
+        this.daily.set(view.daily);
+        if (!this.auth.currentUser() && view.name) {
+          this.auth.currentUser.set({
+            id: '',
+            name: view.name,
+            email: '',
+            created_at: '',
+            updated_at: '',
+          });
+        }
+        this.loading.set(false);
+        after?.();
+      },
+      error: (error: unknown) => {
+        this.loading.set(false);
+        this.snack.open(errorMessage(error), 'Close', { duration: 3500 });
+      },
     });
   }
 }

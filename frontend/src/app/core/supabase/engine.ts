@@ -107,6 +107,10 @@ function taskApplies(task: StoredTask, day: string, override: StoredOverride | u
   return false;
 }
 
+function asDay(value: string): string {
+  return String(value).slice(0, 10);
+}
+
 function effectivePoints(task: StoredTask, override: StoredOverride | undefined): number {
   if (override && override.points !== null && override.points !== undefined) return Number(override.points);
   return Number(task.points || DEFAULT_POINTS['MEDIUM']);
@@ -128,9 +132,12 @@ export class Schedule {
     completions: StoredCompletion[],
     scores: StoredScore[],
   ) {
-    for (const item of overrides) this.overrides.set(`${item.task_id}|${item.override_date}`, item);
-    for (const item of completions) this.completions.set(`${item.task_id}|${item.completion_date}`, item);
-    for (const item of scores) this.scores.set(item.score_date, item);
+    for (const item of overrides) this.overrides.set(`${item.task_id}|${asDay(item.override_date)}`, item);
+    for (const item of completions) this.completions.set(`${item.task_id}|${asDay(item.completion_date)}`, {
+      ...item,
+      completion_date: asDay(item.completion_date),
+    });
+    for (const item of scores) this.scores.set(asDay(item.score_date), { ...item, score_date: asDay(item.score_date) });
   }
 
   overrideFor(taskId: string, day: string): StoredOverride | undefined {

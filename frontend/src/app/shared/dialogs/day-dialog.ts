@@ -1,7 +1,9 @@
 import { Component, inject, signal } from '@angular/core';
+import { concat } from 'rxjs';
 import { MatButtonModule } from '@angular/material/button';
-import { MAT_DIALOG_DATA, MatDialog, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
+import { MAT_DIALOG_DATA, MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
+import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatSnackBar } from '@angular/material/snack-bar';
 
 import { DailyTask, DailyView, TaskPayload } from '../../core/models/models';
@@ -12,7 +14,7 @@ import { TaskFormDialog } from './task-form-dialog';
 
 @Component({
   selector: 'app-day-dialog',
-  imports: [MatDialogModule, MatButtonModule, MatProgressBarModule],
+  imports: [MatDialogModule, MatButtonModule, MatProgressBarModule, MatSlideToggleModule],
   template: `
     <h2 mat-dialog-title>{{ label }}</h2>
     <mat-dialog-content>
@@ -29,34 +31,26 @@ import { TaskFormDialog } from './task-form-dialog';
         }
         @for (task of view.tasks; track task.id) {
           <div class="task-line">
-            <button
-              type="button"
-              class="done-toggle"
-              [class.is-done]="task.completed"
-              [attr.aria-pressed]="task.completed"
-              [attr.aria-label]="(task.completed ? 'Mark not done: ' : 'Mark done: ') + task.title"
-              (click)="toggle(task, !task.completed)">
-              {{ task.completed ? '✓' : '' }}
-            </button>
             <span>{{ task.title }}</span>
-            <em>+{{ task.completed ? task.earned_points : task.points }}</em>
+            <div class="done-slide">
+              <span [class.is-current]="!isDone(task)">Undone</span>
+              <mat-slide-toggle color="primary" [checked]="isDone(task)" (change)="mark(task, $event.checked)" [attr.aria-label]="'Done or undone: ' + task.title"></mat-slide-toggle>
+              <span [class.is-current]="isDone(task)">Done</span>
+            </div>
+            <em>+{{ isDone(task) ? task.earned_points || task.points : task.points }}</em>
           </div>
         }
         @if (view.custom_tasks.length) {
           <h3>Custom for this date</h3>
           @for (task of view.custom_tasks; track task.id) {
             <div class="task-line">
-              <button
-                type="button"
-                class="done-toggle"
-                [class.is-done]="task.completed"
-                [attr.aria-pressed]="task.completed"
-                [attr.aria-label]="(task.completed ? 'Mark not done: ' : 'Mark done: ') + task.title"
-                (click)="toggle(task, !task.completed)">
-                {{ task.completed ? '✓' : '' }}
-              </button>
               <span>{{ task.title }}</span>
-              <em>+{{ task.completed ? task.earned_points : task.points }}</em>
+              <div class="done-slide">
+                <span [class.is-current]="!isDone(task)">Undone</span>
+                <mat-slide-toggle color="primary" [checked]="isDone(task)" (change)="mark(task, $event.checked)" [attr.aria-label]="'Done or undone: ' + task.title"></mat-slide-toggle>
+                <span [class.is-current]="isDone(task)">Done</span>
+              </div>
+              <em>+{{ isDone(task) ? task.earned_points || task.points : task.points }}</em>
             </div>
           }
         }
@@ -64,12 +58,14 @@ import { TaskFormDialog } from './task-form-dialog';
     </mat-dialog-content>
     <mat-dialog-actions align="end">
       <button mat-button type="button" mat-dialog-close>Close</button>
-      <button mat-flat-button color="primary" type="button" (click)="addCustom()">Add custom task</button>
+      <button mat-stroked-button type="button" (click)="addCustom()">Add custom task</button>
+      <button mat-flat-button color="primary" type="button" [disabled]="!dirty() || saving()" (click)="save()">Save</button>
     </mat-dialog-actions>
   `,
   styles: `
     .day-summary { display: flex; justify-content: space-between; margin-bottom: 8px; }
-    .task-line { display: grid; grid-template-columns: auto 1fr auto; gap: 12px; align-items: center; padding: 8px 0; }
+    .task-line { display: flex; gap: 12px; align-items: center; padding: 8px 0; }
+    .task-line > span { flex: 1; }
     .empty { color: var(--muted); }
     h3 { margin: 16px 0 4px; font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
   `,
@@ -80,20 +76,24 @@ export class DayDialog {
   private readonly tasks = inject(TaskService);
   private readonly dialog = inject(MatDialog);
   private readonly snack = inject(MatSnackBar);
-  private readonly dialogRef = inject(MatDialogRef<DayDialog>);
   readonly loading = signal(true);
   readonly daily = signal<DailyView | null>(null);
+  readonly saving = signal(false);
   readonly label = formatLongDate(this.date);
+  private readonly drafts = signal<Record<string, boolean>>({});
 
   constructor() {
     this.load();
   }
 
-  load(): void {
-    this.loading.set(true);
+  load(quiet = false): void {
+    if (!quiet) {
+      this.loading.set(true);
+    }
     this.productivity.daily(this.date).subscribe({
       next: (view) => {
         this.daily.set(view);
+        this.drafts.set({});
         this.loading.set(false);
       },
       error: (error: unknown) => {
@@ -103,13 +103,47 @@ export class DayDialog {
     });
   }
 
-  toggle(task: DailyTask, checked: boolean): void {
-    const request = checked
-      ? this.productivity.complete(task.id, this.date)
-      : this.productivity.uncomplete(task.id, this.date);
-    request.subscribe({
-      next: (result) => this.daily.set(result.daily),
-      error: (error: unknown) => this.snack.open(errorMessage(error), 'Close', { duration: 3500 }),
+  isDone(task: DailyTask): boolean {
+    const draft = this.drafts()[task.id];
+    return draft === undefined ? task.completed : draft;
+  }
+
+  mark(task: DailyTask, completed: boolean): void {
+    this.drafts.update((current) => ({ ...current, [task.id]: completed }));
+  }
+
+  dirty(): boolean {
+    const view = this.daily();
+    if (!view) {
+      return false;
+    }
+    return [...view.tasks, ...view.custom_tasks].some((task) => this.isDone(task) !== task.completed);
+  }
+
+  save(): void {
+    const view = this.daily();
+    if (!view || this.saving()) {
+      return;
+    }
+    const changes = [...view.tasks, ...view.custom_tasks].filter((task) => this.isDone(task) !== task.completed);
+    if (!changes.length) {
+      return;
+    }
+    this.saving.set(true);
+    concat(
+      ...changes.map((task) =>
+        this.isDone(task) ? this.productivity.complete(task.id, this.date) : this.productivity.uncomplete(task.id, this.date),
+      ),
+    ).subscribe({
+      complete: () => {
+        this.saving.set(false);
+        this.snack.open('Saved', 'Close', { duration: 2500 });
+        this.load(true);
+      },
+      error: (error: unknown) => {
+        this.saving.set(false);
+        this.snack.open(errorMessage(error), 'Close', { duration: 3500 });
+      },
     });
   }
 
