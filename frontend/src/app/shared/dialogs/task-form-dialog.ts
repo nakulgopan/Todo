@@ -20,7 +20,7 @@ import {
   TaskType,
   WEEKDAYS,
 } from '../../core/models/models';
-import { parseIso, toIso } from '../../core/utils/dates';
+import { formatShortDate, parseIso, toIso } from '../../core/utils/dates';
 
 export interface TaskFormData {
   mode: 'create' | 'edit';
@@ -28,6 +28,7 @@ export interface TaskFormData {
   occurrenceDate?: string;
   task?: Task;
   lockType?: TaskType;
+  lockRepeat?: RepeatRule;
   lockDate?: string;
   defaultPoints?: DefaultPoints;
 }
@@ -73,13 +74,15 @@ export interface TaskFormData {
           <input matInput type="number" formControlName="points" (input)="pointsEdited = true" />
         </mat-form-field>
         @if (data.scope !== 'occurrence') {
-          <mat-form-field appearance="outline">
-            <mat-label>Type</mat-label>
-            <mat-select formControlName="task_type">
-              <mat-option value="ONE_TIME">One-time</mat-option>
-              <mat-option value="RECURRING">Recurring</mat-option>
-            </mat-select>
-          </mat-form-field>
+          @if (!data.lockType) {
+            <mat-form-field appearance="outline">
+              <mat-label>Type</mat-label>
+              <mat-select formControlName="task_type">
+                <mat-option value="ONE_TIME">One-time</mat-option>
+                <mat-option value="RECURRING">Recurring</mat-option>
+              </mat-select>
+            </mat-form-field>
+          }
           @if (form.controls.task_type.value === 'ONE_TIME') {
             <mat-form-field appearance="outline">
               <mat-label>Date</mat-label>
@@ -88,6 +91,7 @@ export interface TaskFormData {
               <mat-datepicker #specificPicker></mat-datepicker>
             </mat-form-field>
           } @else {
+            @if (!data.lockRepeat) {
             <mat-form-field appearance="outline">
               <mat-label>Repeats</mat-label>
               <mat-select formControlName="repeat_rule">
@@ -105,6 +109,7 @@ export interface TaskFormData {
                   }
                 </mat-button-toggle-group>
               </div>
+            }
             }
             <mat-form-field appearance="outline">
               <mat-label>Starts</mat-label>
@@ -151,7 +156,7 @@ export class TaskFormDialog {
     priority: ['MEDIUM' as Priority],
     points: [this.defaults.MEDIUM, [Validators.required, Validators.min(1), Validators.max(500)]],
     task_type: [(this.data.lockType ?? 'RECURRING') as TaskType],
-    repeat_rule: ['DAILY' as RepeatRule],
+    repeat_rule: [(this.data.lockRepeat ?? 'DAILY') as RepeatRule],
     custom_weekdays: [[] as number[]],
     start_date: [new Date() as Date | null],
     end_date: [null as Date | null],
@@ -179,6 +184,14 @@ export class TaskFormDialog {
       this.form.controls.task_type.setValue(this.data.lockType);
       this.form.controls.task_type.disable();
     }
+    if (this.data.lockRepeat) {
+      this.form.controls.repeat_rule.setValue(this.data.lockRepeat);
+      this.form.controls.repeat_rule.disable();
+    }
+    if (this.data.lockDate) {
+      this.form.controls.specific_date.setValue(parseIso(this.data.lockDate));
+      this.form.controls.specific_date.disable();
+    }
     if (this.data.scope === 'future' && this.data.occurrenceDate) {
       this.form.controls.start_date.setValue(parseIso(this.data.occurrenceDate));
     }
@@ -186,7 +199,10 @@ export class TaskFormDialog {
 
   get title(): string {
     if (this.data.mode === 'create') {
-      return this.data.lockDate ? 'Custom task' : 'New task';
+      if (this.data.lockDate) {
+        return `Task for ${formatShortDate(this.data.lockDate)}`;
+      }
+      return this.data.lockRepeat === 'DAILY' ? 'Daily task' : 'New task';
     }
     if (this.data.scope === 'occurrence') {
       return 'Edit this occurrence';

@@ -9,6 +9,7 @@ import { ProductivityService } from '../../core/services/productivity.service';
 import { TaskService } from '../../core/services/task.service';
 import { DailyView } from '../../core/models/models';
 import { addDays, formatShortDate } from '../../core/utils/dates';
+import { TaskFormDialog } from '../../shared/dialogs/task-form-dialog';
 import { Dashboard } from './dashboard';
 
 const daily: DailyView = {
@@ -127,5 +128,22 @@ describe('Dashboard', () => {
     fixture.detectChanges();
     expect(productivity.daily).toHaveBeenCalledWith(yesterday);
     expect(root.textContent).toContain('Incomplete');
+  });
+
+  it('adds a daily task from the header and a task for an open date', () => {
+    const fixture = TestBed.createComponent(Dashboard);
+    const dialog = TestBed.inject(MatDialog);
+    spyOn(dialog, 'open').and.returnValue({ afterClosed: () => of(undefined) } as never);
+    fixture.detectChanges();
+    fixture.componentInstance.addTask();
+    fixture.componentInstance.addForDate('2026-10-02');
+    expect(dialog.open).toHaveBeenCalledWith(
+      TaskFormDialog,
+      jasmine.objectContaining({ data: { mode: 'create', lockType: 'RECURRING', lockRepeat: 'DAILY' } }),
+    );
+    expect(dialog.open).toHaveBeenCalledWith(
+      TaskFormDialog,
+      jasmine.objectContaining({ data: { mode: 'create', lockType: 'ONE_TIME', lockDate: '2026-10-02' } }),
+    );
   });
 });

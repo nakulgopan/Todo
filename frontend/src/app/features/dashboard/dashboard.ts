@@ -27,7 +27,7 @@ import { TaskFormDialog } from '../../shared/dialogs/task-form-dialog';
           <h1>{{ greetingText() }} 👋</h1>
           <p>{{ dateLabel() }}</p>
         </div>
-        <button mat-flat-button color="primary" type="button" (click)="addTask()">Add task</button>
+        <button mat-flat-button color="primary" type="button" (click)="addTask()">Add daily task</button>
       </header>
 
       <section class="progress-card">
@@ -59,6 +59,9 @@ import { TaskFormDialog } from '../../shared/dialogs/task-form-dialog';
             @if (openDate() === day) {
               <div class="day-body">
                 @if (viewFor(day); as dayView) {
+                  <div class="day-actions">
+                    <button mat-stroked-button type="button" (click)="addForDate(day)">Add task for {{ shortDate(day) }}</button>
+                  </div>
                   @if (dayView.tasks.length === 0 && dayView.custom_tasks.length === 0) {
                     <div class="empty-state">
                       <h3>Nothing scheduled</h3>
@@ -218,8 +221,16 @@ export class Dashboard {
   }
 
   addTask(): void {
+    this.createTask({ mode: 'create', lockType: 'RECURRING', lockRepeat: 'DAILY' }, this.date);
+  }
+
+  addForDate(day: string): void {
+    this.createTask({ mode: 'create', lockType: 'ONE_TIME', lockDate: day }, day);
+  }
+
+  private createTask(data: { mode: 'create'; lockType: 'RECURRING' | 'ONE_TIME'; lockRepeat?: 'DAILY'; lockDate?: string }, day: string): void {
     this.dialog
-      .open(TaskFormDialog, { width: '560px', maxWidth: '95vw', data: { mode: 'create' } })
+      .open(TaskFormDialog, { width: '560px', maxWidth: '95vw', data })
       .afterClosed()
       .subscribe((payload) => {
         if (!payload) {
@@ -228,10 +239,24 @@ export class Dashboard {
         this.tasksApi.create(payload).subscribe({
           next: () => {
             this.snack.open('Task added', 'Close', { duration: 2500 });
-            this.load();
+            this.refresh(day);
+            if (day !== this.date) {
+              this.load();
+            }
           },
           error: (error: unknown) => this.snack.open(errorMessage(error), 'Close', { duration: 3500 }),
         });
       });
+  }
+
+  private refresh(day: string): void {
+    if (day === this.date) {
+      this.load();
+      return;
+    }
+    this.productivity.daily(day).subscribe({
+      next: (view) => this.pastViews.update((current) => ({ ...current, [day]: view })),
+      error: (error: unknown) => this.snack.open(errorMessage(error), 'Close', { duration: 3500 }),
+    });
   }
 }

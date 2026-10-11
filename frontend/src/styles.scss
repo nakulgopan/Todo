@@ -167,6 +167,7 @@ a { color: var(--brand); }
 .today-pill { border-radius: 999px; background: var(--brand); color: #fff; font-size: 12px; padding: 3px 8px; }
 .day-chevron { margin-left: auto; color: var(--muted); }
 .day-body { padding: 0 16px 8px; }
+.day-actions { display: flex; justify-content: flex-end; margin-bottom: 4px; }
 .day-note { margin: 8px 0 12px; color: var(--ink); line-height: 1.5; }
 .task-state { color: var(--muted); font-size: 12px; }
 .section-label { margin: 18px 0 4px; font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
