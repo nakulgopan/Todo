@@ -96,11 +96,18 @@ import { errorMessage } from '../../core/utils/dates';
     </section>
   `,
   styles: `
-    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; }
-    .span-2 { grid-column: span 2; }
-    .toggles, .points { display: flex; flex-wrap: wrap; gap: 12px 20px; margin-bottom: 12px; }
+    .form-panel { min-width: 0; }
+    .form-grid { display: grid; grid-template-columns: 1fr; }
+    .form-grid > mat-form-field,
+    .points mat-form-field { width: 100%; }
+    .toggles, .points { display: grid; grid-template-columns: 1fr; gap: 4px 12px; margin-bottom: 12px; }
     .avatar { width: 64px; height: 64px; border-radius: 50%; object-fit: cover; margin-bottom: 12px; }
-    @media (max-width: 720px) { .form-grid, .span-2 { display: block; } }
+    @media (min-width: 800px) {
+      .form-grid { grid-template-columns: 1fr 1fr; gap: 0 12px; }
+      .span-2 { grid-column: span 2; }
+      .points { grid-template-columns: 1fr 1fr; }
+      .toggles { grid-template-columns: repeat(3, max-content); }
+    }
   `,
 })
 export class Profile {

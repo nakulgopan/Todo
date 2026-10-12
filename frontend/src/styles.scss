@@ -254,8 +254,15 @@ html.dark .day-cell.perfect { background: #163328; }
   .content { padding: 8px 16px 96px; }
   .topbar { padding: 8px 12px; }
   .top-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .page-head { align-items: stretch; }
+  .page-head { align-items: stretch; justify-items: start; }
+  .page-head > div { width: 100%; }
   .page-head h1 { font-size: 1.75rem; }
+  .content mat-form-field,
+  .auth-card mat-form-field { width: 100%; max-width: 100%; }
+  .content .mat-mdc-form-field-infix,
+  .auth-card .mat-mdc-form-field-infix { width: auto; min-width: 0; }
+  .content .mat-mdc-text-field-wrapper,
+  .auth-card .mat-mdc-text-field-wrapper { width: 100%; }
   .page-head, .stat-row, .calendar-grid { display: grid; }
   .page-head, .stat-row { grid-template-columns: 1fr; }
   .month-nav, .day-actions, .toolbar, .row-actions { flex-wrap: wrap; }
