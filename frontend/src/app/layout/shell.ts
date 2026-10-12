@@ -1,5 +1,6 @@
 import { Component, inject, signal } from '@angular/core';
-import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { filter } from 'rxjs';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 
@@ -12,14 +13,17 @@ import { ThemeService } from '../core/services/theme.service';
   imports: [RouterOutlet, RouterLink, RouterLinkActive, MatButtonModule, MatIconModule],
   template: `
     <div class="shell">
+      @if (menuOpen()) {
+        <button type="button" class="sidebar-backdrop" aria-label="Close menu" (click)="closeMenu()"></button>
+      }
       <aside class="sidebar" [class.open]="menuOpen()">
-        <a class="logo" routerLink="/">
+        <a class="logo" routerLink="/" (click)="closeMenu()">
           <span class="logo-mark">✶</span>
           <span>DaleRoute</span>
         </a>
         <nav>
           @for (item of links; track item.path) {
-            <a [routerLink]="item.path" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: item.exact }">
+            <a [routerLink]="item.path" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: item.exact }" (click)="closeMenu()">
               <mat-icon>{{ item.icon }}</mat-icon>
               {{ item.label }}
             </a>
@@ -51,6 +55,7 @@ import { ThemeService } from '../core/services/theme.service';
 })
 export class Shell {
   readonly auth = inject(AuthService);
+  private readonly router = inject(Router);
   private readonly productivity = inject(ProductivityService);
   private readonly theme = inject(ThemeService);
   readonly menuOpen = signal(false);
@@ -65,7 +70,12 @@ export class Shell {
   ];
   readonly primary = this.links.slice(0, 5);
 
+  closeMenu(): void {
+    this.menuOpen.set(false);
+  }
+
   constructor() {
+    this.router.events.pipe(filter((event) => event instanceof NavigationEnd)).subscribe(() => this.closeMenu());
     if (!this.auth.currentUser()) {
       this.auth.loadCurrentUser().subscribe({ error: () => this.auth.clearSession() });
     }

@@ -64,8 +64,9 @@ import { TaskFormDialog } from './task-form-dialog';
   `,
   styles: `
     .day-summary { display: flex; justify-content: space-between; margin-bottom: 8px; }
-    .task-line { display: flex; gap: 12px; align-items: center; padding: 8px 0; }
-    .task-line > span { flex: 1; }
+    .task-line { display: flex; gap: 12px; align-items: center; padding: 8px 0; flex-wrap: wrap; }
+    .task-line > span { flex: 1 1 140px; min-width: 0; }
+    .done-slide { margin-left: auto; }
     .empty { color: var(--muted); }
     h3 { margin: 16px 0 4px; font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
   `,
